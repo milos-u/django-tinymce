@@ -64,10 +64,13 @@ def render_to_js_vardef(var_name, var_value):
 
 
 def filebrowser(request):
-    try:
-        fb_url = request.build_absolute_uri(reverse('fb_browse'))
-    except Exception:
-        fb_url = request.build_absolute_uri(reverse('filebrowser:fb_browse'))
+    if getattr(request, "FILEBROWSER_DYNAMIC_URL", None):
+        fb_url = request.build_absolute_uri(request.FILEBROWSER_DYNAMIC_URL)
+    else:
+        try:
+            fb_url = request.build_absolute_uri(reverse('fb_browse'))
+        except Exception:
+            fb_url = request.build_absolute_uri(reverse('filebrowser:fb_browse'))
 
     return render(
         request,
