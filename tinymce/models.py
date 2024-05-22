@@ -1,8 +1,9 @@
 # Copyright (c) 2008 Joost Cassee
 # Licensed under the terms of the MIT License (see LICENSE.txt)
 
+from django import forms
 from django.db import models
-from django.contrib.admin import widgets as admin_widgets
+from tlp.admin import widgets as admin_widgets
 from tinymce import widgets as tinymce_widgets
 try:
     from south.modelsinspector import add_introspection_rules
@@ -16,8 +17,17 @@ class HTMLField(models.TextField):
     A large string field for HTML content. It uses the TinyMCE widget in
     forms.
     """
+    def __init__(self, *args, **kwargs):
+        self.tinymce_config = kwargs.pop("tinymce_config", None)
+        super(HTMLField, self).__init__(*args, **kwargs)
+
     def formfield(self, **kwargs):
-        defaults = {'widget': tinymce_widgets.TinyMCE}
+        defaults = {
+            'widget': tinymce_widgets.TinyMCE,
+            'form_class': self._get_form_class(),
+        }
+        if self.tinymce_config:
+            defaults["tinymce_config"] = self.tinymce_config.copy()
         defaults.update(kwargs)
 
         # As an ugly hack, we override the admin widget
@@ -25,3 +35,23 @@ class HTMLField(models.TextField):
             defaults['widget'] = tinymce_widgets.AdminTinyMCE
 
         return super(HTMLField, self).formfield(**defaults)
+
+    @staticmethod
+    def _get_form_class():
+        return HTMLFormField 
+
+
+class HTMLFormField(forms.fields.CharField):
+
+    def __init__(
+        self,
+        tinymce_config=None,
+        *args,
+        **kwargs
+    ):
+        kwargs.update(
+            {
+                "widget": kwargs["widget"](mce_attrs=tinymce_config)
+            }
+        )
+        super(HTMLFormField, self).__init__(*args, **kwargs)
