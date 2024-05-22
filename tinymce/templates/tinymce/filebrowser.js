@@ -1,21 +1,17 @@
-function djangoFileBrowser(field_name, url, type, win) {
-    var url = "{{ fb_url }}?pop=2&type=" + type;
+function djangoFileBrowser(callback, value, meta) {
+    var url = "{{ fb_url }}?pop=5&type=" + meta.filetype;
 
-    tinyMCE.activeEditor.windowManager.open(
+    const instanceApi = tinyMCE.activeEditor.windowManager.openUrl(
         {
-            'file': url,
-            'width': 820,
-            'height': 500,
-            'resizable': "yes",
-            'scrollbars': "yes",
-            'inline': "no",
-            'close_previous': "no"
+            'title': "",
+            'url': url,
+            'width': 1024,
+            'height': 800,
+            'onMessage': function (dialogApi, details) {
+                callback(details.content)
+                instanceApi.close()
+            }
         },
-        {
-            'window': win,
-            'input': field_name,
-            'editor_id': tinyMCE.selectedInstance.editorId
-        }
     );
-    return false;
+    return false
 }

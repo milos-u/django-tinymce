@@ -27,13 +27,8 @@ safe_filename_re = re.compile('^[a-zA-Z][a-zA-Z0-9_/-]*$')
 
 
 def get_file_contents(filename):
-    if 'staticfiles' in settings.INSTALLED_APPS or \
-       'django.contrib.staticfiles' in settings.INSTALLED_APPS:
-        from django.contrib.staticfiles import finders
-        file_path = finders.find(os.path.join('tiny_mce', filename))
-    else:
-        file_path = os.path.join(tinymce.settings.JS_ROOT, filename)
-
+    from django.contrib.staticfiles import finders
+    file_path = finders.find(os.path.join('tiny_mce', filename))
     try:
         f = open(file_path)
         try:

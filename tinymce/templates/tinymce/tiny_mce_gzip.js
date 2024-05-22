@@ -1,7 +1,7 @@
 /**
  * Based on "TinyMCE Compressor PHP v2.0.4" from MoxieCode.
  *
- * http://tinymce.moxiecode.com/
+ * https://tinymce.moxiecode.com/
  *
  * Copyright (c) 2012 Jason Davies
  * Licensed under the terms of the MIT License (see LICENSE.txt)
@@ -134,7 +134,11 @@ var tinyMCE_GZ = {
 		se.text = co;
 
 		// Add it to evaluate it and remove it
-		(document.getElementsByTagName('head')[0] || document.documentElement).appendChild(se);
+		try {
+		  (document.getElementsByTagName('head')[0] || document.documentElement).appendChild(se);
+		} catch (error) {
+		  console.error(error, "Tried to eval:", se);
+		}
 		se.parentNode.removeChild(se);
 	}
 };

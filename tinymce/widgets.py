@@ -9,15 +9,17 @@ from __future__ import unicode_literals
 
 from collections import OrderedDict
 import json
+import os
 
 from django import forms
 from django.conf import settings
-from django.contrib.admin import widgets as admin_widgets
-from django.forms.utils import flatatt
+from tlp.admin import widgets as admin_widgets
+from django.core.serializers.json import DjangoJSONEncoder
+from django.forms.util import flatatt
 from django.utils.encoding import force_text
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
-from django.utils.translation import get_language, ugettext as _
+from django.utils.translation import get_language, ugettext as _, to_locale
 try:
     from django.urls import reverse
 except ImportError:
@@ -27,10 +29,16 @@ except ImportError:
 import tinymce.settings
 
 
+TINY_LANG_DIR = os.path.join(__file__, "../", "static", "tinymce", "langs")
+TINY_LANGS = [
+    filename.split('.')[0] for filename in os.listdir(TINY_LANG_DIR) if filename.endswith(".js")
+]
+
+
 class TinyMCE(forms.Textarea):
     """
     TinyMCE widget. Set settings.TINYMCE_JS_URL to set the location of the
-    javascript file. Default is "MEDIA_URL + 'js/tiny_mce/tiny_mce.js'".
+    javascript file. Default is "STATIC_URL + 'tinymce/tinymce.min.js'".
     You can customize the configuration with the mce_attrs argument to the
     constructor.
 
@@ -48,11 +56,7 @@ class TinyMCE(forms.Textarea):
         super(TinyMCE, self).__init__(attrs)
         mce_attrs = mce_attrs or {}
         self.mce_attrs = mce_attrs
-        if 'mode' not in self.mce_attrs:
-            self.mce_attrs['mode'] = 'exact'
-        self.mce_attrs['strict_loading_mode'] = 1
-        if content_language is None:
-            content_language = mce_attrs.get('language', None)
+        self.mce_attrs["strict_loading_mode"] = 1
         self.content_language = content_language
 
     def use_required_attribute(self, *args):
@@ -61,12 +65,23 @@ class TinyMCE(forms.Textarea):
 
     def get_mce_config(self, attrs):
         mce_config = tinymce.settings.DEFAULT_CONFIG.copy()
-        mce_config.update(get_language_config(self.content_language))
+        if "language" not in mce_config:
+            mce_config["language"] = get_language_from_django()
+        if mce_config["language"] == "en_US":
+            del mce_config["language"]
+        else:
+            mce_config["language"] = match_language_with_tinymce(mce_config["language"])
+        mce_config.update(
+            get_language_config(self.content_language or mce_config.get("language", "en_US"))
+        )
         if tinymce.settings.USE_FILEBROWSER:
-            mce_config['file_browser_callback'] = "djangoFileBrowser"
+            mce_config["file_picker_callback"] = "djangoFileBrowser"
         mce_config.update(self.mce_attrs)
-        if mce_config['mode'] == 'exact':
-            mce_config['elements'] = attrs['id']
+        # Assuming that if selector is present, it should include "textarea".
+        if not mce_config.get("selector"):
+            mce_config["selector"] = "#{}".format(attrs['id'])
+        if "content_css" in mce_config:
+            mce_config["content_css"] = force_text(mce_config["content_css"])
         return mce_config
 
     def render(self, name, value, attrs=None, renderer=None):
@@ -81,7 +96,7 @@ class TinyMCE(forms.Textarea):
             final_attrs['class'] = ' '.join(final_attrs['class'].split(' ') + ['tinymce'])
         assert 'id' in final_attrs, "TinyMCE widget attributes must contain 'id'"
         mce_config = self.get_mce_config(final_attrs)
-        mce_json = json.dumps(mce_config)
+        mce_json = json.dumps(mce_config, cls=DjangoJSONEncoder)
         if tinymce.settings.USE_COMPRESSOR:
             compressor_config = {
                 'plugins': mce_config.get('plugins', ''),
@@ -109,8 +124,6 @@ class TinyMCE(forms.Textarea):
 
             if 'css' in tinymce.settings.USE_EXTRA_MEDIA:
                 css = tinymce.settings.USE_EXTRA_MEDIA['css']
-        if tinymce.settings.INCLUDE_JQUERY:
-            js.append('django_tinymce/jquery-1.9.1.min.js')
         js.append('django_tinymce/init_tinymce.js')
         return forms.Media(css=css, js=js)
     media = property(_media)
@@ -120,16 +133,36 @@ class AdminTinyMCE(TinyMCE, admin_widgets.AdminTextareaWidget):
     pass
 
 
-def get_language_config(content_language=None):
+def get_language_from_django():
     language = get_language()
-    language = language[:2] if language is not None else 'en'
-    if content_language:
-        content_language = content_language[:2]
-    else:
-        content_language = language
+    language = to_locale(language) if language is not None else "en_US"
+    return language
+
+
+def match_language_with_tinymce(lang):
+    """
+    Language codes in TinyMCE are inconsistent. E.g. Hebrew is he_IL.js, while
+    Danish is da.js. So we apply some heuristic to find a language code
+    with an existing TinyMCE translation file.
+    """
+    if lang.startswith("en"):
+        return lang
+    # Read tinymce langs from tinymce/static/tinymce/langs/
+    if lang in TINY_LANGS:
+        return lang
+    if lang[:2] in TINY_LANGS:
+        return lang[:2]
+    two_letter_map = {lg[:2]: lg for lg in TINY_LANGS}
+    if lang[:2] in two_letter_map:
+        return two_letter_map[lang[:2]]
+    warnings.warn("No TinyMCE language found for '{}', defaulting to 'en_US'".format(lang), RuntimeWarning)
+    return "en_US"
+
+
+def get_language_config(content_language):
+    content_language = content_language[:2]
 
     config = {}
-    config['language'] = language
 
     lang_names = OrderedDict()
     for lang, name in settings.LANGUAGES:
@@ -144,14 +177,9 @@ def get_language_config(content_language=None):
             default = ''
         sp_langs.append('{!s}{!s}={!s}'.format(default, ' / '.join(names), lang))
 
-    config['spellchecker_languages'] = ','.join(sp_langs)
-
     if content_language in settings.LANGUAGES_BIDI:
         config['directionality'] = 'rtl'
     else:
         config['directionality'] = 'ltr'
-
-    if tinymce.settings.USE_SPELLCHECKER:
-        config['spellchecker_rpc_url'] = reverse('tinymce-spellcheck')
 
     return config

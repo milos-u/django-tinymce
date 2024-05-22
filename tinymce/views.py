@@ -23,46 +23,6 @@ except ImportError:
     enchant = None
 
 
-@csrf_exempt
-def spell_check(request):
-    """
-    Returns a HttpResponse that implements the TinyMCE spellchecker protocol.
-    """
-    try:
-        if not enchant:
-            raise RuntimeError("install pyenchant for spellchecker functionality")
-
-        raw = force_text(request.body)
-        input = json.loads(raw)
-        id = input['id']
-        method = input['method']
-        params = input['params']
-        lang = params[0]
-        arg = params[1]
-
-        if not enchant.dict_exists(str(lang)):
-            raise RuntimeError("dictionary not found for language {!r}".format(lang))
-
-        checker = enchant.Dict(str(lang))
-
-        if method == 'checkWords':
-            result = [word for word in arg if word and not checker.check(word)]
-        elif method == 'getSuggestions':
-            result = checker.suggest(arg)
-        else:
-            raise RuntimeError("Unknown spellcheck method: {!r}".format(method))
-        output = {
-            'id': id,
-            'result': result,
-            'error': None,
-        }
-    except Exception:
-        logging.exception("Error running spellchecker")
-        return HttpResponse(_("Error running spellchecker"))
-    return HttpResponse(json.dumps(output),
-                        content_type='application/json')
-
-
 def flatpages_link_list(request):
     """
     Returns a HttpResponse whose content is a Javascript file representing a
