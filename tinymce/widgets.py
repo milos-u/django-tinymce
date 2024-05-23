@@ -43,9 +43,13 @@ class TinyMCE(forms.Textarea):
     def __init__(self, content_language=None, attrs=None, mce_attrs=None):
         super().__init__(attrs)
         mce_attrs = mce_attrs or {}
-        self.mce_attrs = mce_attrs
+        self.mce_attrs = mce_attrs.copy()
         self.mce_attrs["strict_loading_mode"] = 1
         self.content_language = content_language
+        if "tinymce_filebrowser_url" in self.mce_attrs:
+            self.tinymce_filebrowser_url = self.mce_attrs["tinymce_filebrowser_url"]
+        else:
+            self.tinymce_filebrowser_url = None
 
     def use_required_attribute(self, *args):
         # The html required attribute may disturb client-side browser validation.
@@ -101,7 +105,9 @@ class TinyMCE(forms.Textarea):
             js = [reverse("tinymce-compressor")]
         else:
             js = [tinymce.settings.get_js_url()]
-        if tinymce.settings.USE_FILEBROWSER:
+        if self.tinymce_filebrowser_url:
+            js.append(self.tinymce_filebrowser_url)
+        elif tinymce.settings.USE_FILEBROWSER:
             js.append(reverse("tinymce-filebrowser"))
         if tinymce.settings.USE_EXTRA_MEDIA:
             if "js" in tinymce.settings.USE_EXTRA_MEDIA:
