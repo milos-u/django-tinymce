@@ -2,6 +2,7 @@
 # Licensed under the terms of the MIT License (see LICENSE.txt)
 
 from tlp.admin import widgets as admin_widgets
+from django import forms
 from django.db import models
 
 from tinymce import widgets as tinymce_widgets
