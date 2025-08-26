@@ -3,7 +3,7 @@ function djangoFileBrowser(callback, value, meta) {
 
     tinyMCE.activeEditor.windowManager.openUrl(
         {
-            'title': 'Django Filebrowser',
+            'title': gettext('Django Filebrowser'),
             'url': url,
             'width': 1024,
             'height': 800,
